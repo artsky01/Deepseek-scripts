@@ -1,0 +1,143 @@
+local Player = game:GetService("Players").LocalPlayer
+local Gui = Instance.new("ScreenGui")
+local MoveButton = Instance.new("TextButton")
+local UIS = game:GetService("UserInputService")
+
+-- GUI setup
+Gui.Name = "FinalFreezeGUI"
+Gui.ResetOnSpawn = false
+Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+Gui.IgnoreGuiInset = true
+Gui.DisplayOrder = 999
+Gui.Parent = Player:WaitForChild("PlayerGui")
+
+-- Button configuration
+MoveButton.Name = "FreezeControl"
+MoveButton.Size = UDim2.new(0, 120, 0, 40)
+MoveButton.Position = UDim2.new(0.95, -60, 0.9, -20)
+MoveButton.AnchorPoint = Vector2.new(0.5, 0.5)
+MoveButton.Text = "FREEZE"
+MoveButton.Font = Enum.Font.GothamBold
+MoveButton.TextSize = 14
+MoveButton.TextColor3 = Color3.new(1, 1, 1)
+MoveButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MoveButton.BorderSizePixel = 0
+MoveButton.AutoButtonColor = false
+MoveButton.Visible = true
+MoveButton.Parent = Gui
+
+-- Visual elements
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0.2, 0)
+corner.Parent = MoveButton
+
+local statusLight = Instance.new("Frame")
+statusLight.Name = "StatusLight"
+statusLight.Size = UDim2.new(0, 10, 0, 10)
+statusLight.Position = UDim2.new(0.1, 0, 0.5, -5)
+statusLight.BackgroundColor3 = Color3.new(0.8, 0, 0)
+statusLight.BorderSizePixel = 0
+statusLight.Parent = MoveButton
+Instance.new("UICorner").Parent = statusLight
+
+-- Dragging logic
+local dragStartPosition, dragStartOffset, isDragging
+
+MoveButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = true
+        dragStartPosition = input.Position
+        dragStartOffset = MoveButton.Position
+    end
+end)
+
+MoveButton.InputChanged:Connect(function(input)
+    if isDragging then
+        local delta = input.Position - dragStartPosition
+        MoveButton.Position = UDim2.new(
+            dragStartOffset.X.Scale,
+            dragStartOffset.X.Offset + delta.X,
+            dragStartOffset.Y.Scale,
+            dragStartOffset.Y.Offset + delta.Y
+        )
+    end
+end)
+
+MoveButton.InputEnded:Connect(function()
+    isDragging = false
+end)
+
+-- Freeze system
+local isFrozen = false
+local savedVelocity = Vector3.new(0, 0, 0)
+local currentBodyVelocity
+
+local function setVisualState()
+    statusLight.BackgroundColor3 = isFrozen and Color3.new(0, 0.8, 0) or Color3.new(0.8, 0, 0)
+    MoveButton.Text = isFrozen and "UNFREEZE" or "FREEZE"
+end
+
+local function cleanUpForces()
+    if currentBodyVelocity then
+        currentBodyVelocity:Destroy()
+        currentBodyVelocity = nil
+    end
+end
+
+local function freezeCharacter()
+    local character = Player.Character
+    if not character then return end
+    
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if rootPart then
+        cleanUpForces()
+        savedVelocity = rootPart.Velocity
+        rootPart.Anchored = true
+        isFrozen = true
+        setVisualState()
+    end
+end
+
+local function unfreezeCharacter()
+    local character = Player.Character
+    if not character then return end
+    
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if rootPart then
+        rootPart.Anchored = false
+        cleanUpForces()
+        
+        if savedVelocity.Magnitude > 0 then
+            currentBodyVelocity = Instance.new("BodyVelocity")
+            currentBodyVelocity.Velocity = savedVelocity
+            currentBodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
+            currentBodyVelocity.Parent = rootPart
+            game:GetService("Debris"):AddItem(currentBodyVelocity, 0.1)
+        end
+        
+        isFrozen = false
+        setVisualState()
+    end
+end
+
+MoveButton.Activated:Connect(function()
+    if isFrozen then unfreezeCharacter() else freezeCharacter() end
+end)
+
+-- Death handling
+Player.CharacterAdded:Connect(function(character)
+    local humanoid = character:WaitForChild("Humanoid")
+    
+    humanoid.Died:Connect(function()
+        isFrozen = false
+        cleanUpForces()
+        setVisualState()
+        
+        if character:FindFirstChild("HumanoidRootPart") then
+            character.HumanoidRootPart.Anchored = false
+        end
+    end)
+end)
+
+-- Initial state
+setVisualState()
