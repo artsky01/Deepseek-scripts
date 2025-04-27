@@ -1,0 +1,96 @@
+-- Клиентская часть (LocalScript в StarterPack)
+local player = game:GetService("Players").LocalPlayer
+local tool = Instance.new("Tool")
+tool.Name = "[Mover]"
+tool.RequiresHandle = false
+tool.Parent = player:WaitForChild("Backpack")
+
+-- GUI интерфейс
+local gui = Instance.new("ScreenGui")
+gui.Name = "MoverGUI"
+local frame = Instance.new("Frame")
+local textBox = Instance.new("TextBox")
+local buttons = {}
+
+-- Настройки GUI
+frame.Size = UDim2.new(0, 160, 0, 140)
+frame.Position = UDim2.new(1, -180, 0.5, -70) -- Справа по центру
+frame.Visible = false
+frame.Parent = gui
+gui.Parent = player:WaitForChild("PlayerGui")
+
+-- Текстовое поле для ввода шага
+textBox.Size = UDim2.new(0, 100, 0, 25)
+textBox.Position = UDim2.new(0.5, -50, 0, 10)
+textBox.Text = "0.1"
+textBox.PlaceholderText = "Enter step size"
+textBox.TextScaled = true
+textBox.Parent = frame
+
+-- Кнопки направлений
+local directions = {
+    {symbol = "↑", offset = Vector3.new(0, 0, 1)},  -- Вперед (Z+)
+    {symbol = "↓", offset = Vector3.new(0, 0, -1)}, -- Назад (Z-)
+    {symbol = "←", offset = Vector3.new(-1, 0, 0)}, -- Влево (X-)
+    {symbol = "→", offset = Vector3.new(1, 0, 0)},  -- Вправо (X+)
+    {symbol = "▲", offset = Vector3.new(0, 1, 0)},  -- Вверх (Y+)
+    {symbol = "▼", offset = Vector3.new(0, -1, 0)}  -- Вниз (Y-)
+}
+
+-- Создание кнопок в сетке 3x2
+for i, dir in ipairs(directions) do
+    local btn = Instance.new("TextButton")
+    btn.Text = dir.symbol
+    btn.Size = UDim2.new(0, 40, 0, 40)
+    
+    -- Позиционирование кнопок
+    local col = (i-1) % 3
+    local row = math.floor((i-1)/3)
+    btn.Position = UDim2.new(0, 10 + col*50, 0, 40 + row*50)
+    btn.Parent = frame
+    table.insert(buttons, btn)
+end
+
+-- Логика выделения
+local currentHighlight
+local selectedPart
+
+local function clearSelection()
+    if currentHighlight then
+        currentHighlight:Destroy()
+        currentHighlight = nil
+    end
+    selectedPart = nil
+    frame.Visible = false
+end
+
+-- Обработчики инструмента
+tool.Unequipped:Connect(clearSelection)
+
+tool.Activated:Connect(function()
+    local ray = workspace:Raycast(
+        player:GetMouse().Origin.Position,
+        player:GetMouse().UnitRay.Direction * 100
+    )
+    
+    if ray and ray.Instance then
+        clearSelection()
+        selectedPart = ray.Instance
+        currentHighlight = Instance.new("Highlight")
+        currentHighlight.Parent = selectedPart
+        frame.Visible = true
+    end
+end)
+
+-- Логика перемещения с учетом шага
+for i, btn in ipairs(buttons) do
+    btn.MouseButton1Click:Connect(function()
+        if selectedPart then
+            local step = tonumber(textBox.Text) or 0.1
+            local direction = directions[i].offset
+            local offset = direction * step
+            local newCFrame = selectedPart.CFrame + offset
+            selectedPart:PivotTo(newCFrame)
+        end
+    end)
+end
